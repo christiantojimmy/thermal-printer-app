@@ -1,0 +1,32 @@
+{
+  "name": "thermal-printer-app",
+  "version": "1.0.0",
+  "description": "Aplikasi Cetak Label Thermal untuk Printer 80mm",
+  "author": "Jimmy Christianto",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "escpos": "^3.0.0-alpha.6",
+    "serialport": "^12.0.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.mrj.thermalprinter",
+    "productName": "Mr J - Thermal Printer",
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "files": [
+      "**/*",
+      "!dist"
+    ],
+    "asar": true
+  }
+}

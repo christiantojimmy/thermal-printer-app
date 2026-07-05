@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Mr J - Thermal Printer</title>
+  <style>
+    body { 
+      font-family: sans-serif; 
+      display: flex; 
+      padding: 12px; 
+      gap: 25px; 
+      background: #f4f4f9; 
+      overflow: hidden; /* Mengunci window agar tidak muncul scroll bar */
+      box-sizing: border-box;
+    }
+    
+    .form-container { 
+      flex: 1; 
+      background: white; 
+      padding: 12px 20px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+    }
+    
+    .preview-container { 
+      width: 384px; 
+    }
+    
+    h2 {
+      margin-top: 5px;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+
+    .form-group { 
+      margin-bottom: 8px; 
+    }
+    
+    label { 
+      display: block; 
+      margin-bottom: 4px; 
+      font-weight: bold; 
+      font-size: 13px;
+    }
+    
+    input, select, textarea { 
+      width: 100%; 
+      padding: 7px; 
+      box-sizing: border-box; 
+      border: 1px solid #ccc; 
+      border-radius: 4px; 
+      font-size: 13px;
+    }
+    
+    textarea { 
+      height: 65px; 
+      resize: none; 
+    }
+    
+    button { 
+      background: #007bff; 
+      color: white; 
+      padding: 10px 15px; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      font-size: 15px; 
+      width: 100%;
+    }
+    
+    button:hover { 
+      background: #0056b3; 
+    }
+
+    /* Warna Tombol Refresh Disamakan dengan Cetak Label */
+    #btnRefreshPort {
+      width: auto; 
+      padding: 0 15px; /* Menghilangkan padding vertikal agar tingginya flexibel mengikuti kontainer flex */
+      font-size: 13px; 
+      background-color: #007bff; 
+    }
+    #btnRefreshPort:hover {
+      background-color: #0056b3;
+    }
+    
+    /* Styling Live Preview Mirip Kertas Struk */
+    .ticket-preview { 
+      background: white; 
+      border: 1px solid #ddd; 
+      padding: 15px; 
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05); 
+      min-height: 400px; 
+      font-family: 'Courier New', Courier, monospace; 
+      font-size: 14px; 
+      line-height: 1.2; 
+    }
+    
+    .center { text-align: center; }
+    .bold { font-weight: bold; font-size: 16px; }
+    .line { margin: 5px 0; color: #666; letter-spacing: 2px; }
+    .kurir { text-align: center; margin-top: 20px; font-family: 'Courier New', Courier, monospace; white-space: pre; font-weight: bold; line-height: 1.1; }
+  </style>
+</head>
+<body>
+
+  <div class="form-container">
+    <h2>Konfigurasi Printer</h2>
+    <div class="form-group">
+      <label>Pilih COM Port Printer</label>
+      <div style="display: flex; gap: 10px; align-items: stretch;">
+        <select id="comPort" style="flex: 1;">
+          <option value="">Memindai port...</option>
+        </select>
+        <button id="btnRefreshPort">Refresh</button>
+      </div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #ccc; margin: 12px 0;">
+
+    <h2>Input Data Pengiriman</h2>
+    <div class="form-group">
+      <label>Layanan Kurir</label>
+      <select id="kurir">
+        <option value="JNE - REG" selected>JNE - REG</option>
+        <option value="JNE - YES">JNE - YES</option>
+        <option value="JNE - COD">JNE - COD</option>
+        <option value="JNT">JNT</option>
+        <option value="JNT - COD">JNT - COD</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Nama Penerima</label>
+      <input type="text" id="nama" placeholder="Contoh: Budi">
+    </div>
+    <div class="form-group">
+      <label>No. Telepon Penerima</label>
+      <input type="text" id="telepon" placeholder="Contoh: 08123456789">
+    </div>
+    <div class="form-group">
+      <label>Alamat Penerima</label>
+      <textarea id="alamat" placeholder="Tulis alamat lengkap..."></textarea>
+    </div>
+    <button id="btnPrint">Cetak Label</button>
+    <p id="status" style="margin-top: 6px; font-weight: bold; font-size: 13px;"></p>
+  </div>
+
+  <div class="preview-container">
+    <h3>Live Preview (Kertas 80mm)</h3>
+    <div class="ticket-preview" id="previewArea">
+      <div class="center">
+        <img src="logo.png" alt="Logo Mr J" style="max-width: 150px; height: auto;">
+      </div>
+      <br>
+      <div class="bold">Pengirim</div>
+      <div class="line">································</div>
+      <div>Jimmy</div>
+      <div>0856234205</div>
+      <br>
+      <div class="bold">Penerima</div>
+      <div class="line">································</div>
+      <div id="p-nama">[Nama Penerima]</div>
+      <div id="p-telepon">[No. Telepon Penerima]</div>
+      <div id="p-alamat">[Alamat Penerima]</div>
+      <br>
+      <div id="p-kurir" class="kurir">╔═══════════════╗
+║   JNE - REG   ║
+╚═══════════════╝</div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
