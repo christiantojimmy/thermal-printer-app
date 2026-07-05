@@ -16,7 +16,7 @@ Before running or building the project, ensure you have installed:
 1. Clone the repository and navigate to the project directory:
    ```bash
    git clone https://github.com/christiantojimmy/thermal-printer-app.git
-   cd thermal-label-printer
+   cd thermal-printer-app
    ```
 
 2. Install all dependencies:
