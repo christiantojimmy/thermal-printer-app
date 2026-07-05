@@ -32,6 +32,6 @@ Before running or building the project, ensure you have installed:
 ### 📦 How to Build (Production)
 To package the application into standalone production-ready executables (.exe for Windows, .dmg for macOS, or .deb/.rpm for Linux):
 ```bash
-npm run build
+npm run dist
 ```
 The production installers and packages will be generated inside the /dist or /out directory.
