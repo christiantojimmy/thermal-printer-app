@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs'); // Modul bawaan untuk validasi file fisik logo
 const { SerialPort } = require('serialport'); 
-const { Jimp } = require('jimp'); // Destructuring untuk Jimp v1.x ke atas
+const { Jimp } = require('jimp'); // Destructuring wajib untuk Jimp v1.x ke atas
 
 let mainWindow;
 
@@ -38,7 +38,7 @@ function centerText(text, maxChars = 48) {
   return " ".repeat(spasiKiri) + text;
 }
 
-// FUNGSI INOVASI: Kebal dari update Jimp karena menggunakan ekstraksi warna manual (Bitwise Shift)
+// FUNGSI INOVASI: Mengonversi gambar PNG menjadi Buffer Grafis RTPrinter (Sintaks Jimp v1.x + Bitwise Shift)
 async function generateRTPrinterBuffer(imagePath) {
   if (!fs.existsSync(imagePath)) {
     throw new Error("File logo.png tidak ditemukan!");
@@ -47,11 +47,10 @@ async function generateRTPrinterBuffer(imagePath) {
   // 1. Ambil data gambar menggunakan Jimp v1.x
   const image = await Jimp.read(imagePath);
   
-  // 2. Hitung dimensi proporsional agar tidak gepeng
+  // 2. Hitung dimensi proporsional agar aspek rasio tidak rusak / gepeng
   const targetWidth = 240;
   const targetHeight = Math.round((image.height / image.width) * targetWidth);
   
-  // Sesuai skema Zod Jimp v1.x: { w, h }
   image.resize({ w: targetWidth, h: targetHeight });
   image.greyscale().contrast(1);
 
@@ -60,28 +59,23 @@ async function generateRTPrinterBuffer(imagePath) {
   const widthBytes = Math.ceil(width / 8);
   const pixelData = [];
 
-  // 3. Looping data pixel
+  // 3. Looping data pixel dan ekstraksi warna manual
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < widthBytes; x++) {
       let byte = 0;
       for (let b = 0; b < 8; b++) {
         const pixelX = x * 8 + b;
         if (pixelX < width) {
-          // Ambil nilai warna integer 32-bit (Format internal Jimp: RGBA)
           const pixelColor = image.getPixelColor(pixelX, y);
           
-          // SOLUSI TOTAL: Ekstraksi nilai R, G, B, dan A secara manual tanpa Jimp.intToRGBA!
           const r = (pixelColor >> 24) & 0xFF;
           const g = (pixelColor >> 16) & 0xFF;
           const bColor = (pixelColor >> 8) & 0xFF;
           const a = pixelColor & 0xFF;
           
-          // Hitung rata-rata kecerahan (brightness)
           const brightness = (r + g + bColor) / 3;
-          
-          // Jika warna pixel dominan gelap dan tidak transparan (Alpha > 50)
           if (brightness < 128 && a > 50) { 
-            byte |= (0x80 >> b); // Set bit cetak hitam
+            byte |= (0x80 >> b); 
           }
         }
       }
@@ -102,11 +96,11 @@ async function generateRTPrinterBuffer(imagePath) {
   return Buffer.concat([alignCenter, commandHeader, Buffer.from(pixelData), alignLeft]);
 }
 
-// Handle Utama Eksekusi Cetak Label Thermal Hibrida (Gambar + Teks Raw)
+// Handle Utama Eksekusi Cetak Label Thermal Hibrida
 ipcMain.on('print-job', async (event, data) => {
   const device = new SerialPort({
     path: data.targetPort, 
-    baudRate: 9600, // <--- Ganti ke 115200 jika printer Anda disetel berkecepatan tinggi
+    baudRate: 9600, // <--- Ganti ke 115200 jika printer Anda menggunakan kecepatan tinggi
     autoOpen: false 
   });
 
@@ -120,7 +114,6 @@ ipcMain.on('print-job', async (event, data) => {
     }
   };
 
-  // Proteksi keamanan: Batas toleransi waktu transmisi Bluetooth Windows (7 Detik)
   const backupTimeout = setTimeout(() => {
     if (!hasReplied) {
       try { device.destroy(); } catch (e) {}
@@ -140,65 +133,100 @@ ipcMain.on('print-job', async (event, data) => {
     try {
       let imageBuffer = Buffer.from([]);
       
-      // Jalankan fungsi pengolahan gambar asinkronus Jimp v1.x
       try {
         imageBuffer = await generateRTPrinterBuffer(logoPath);
       } catch (imgErr) {
         console.log("Fallback aktif: Gambar dilewati karena " + imgErr.message);
       }
 
-      // STRUKTUR DATA UTAMA TEKS LABEL (Batas Baku Pas 48 Karakter)
-      let rawText = "";
       const maxLineChars = 48;
       const lineSeparator = "-".repeat(maxLineChars) + "\n";
 
-      // Jika logo grafis gagal dimuat atau dilewati, pasang header teks otomatis sebagai cadangan
-      if (imageBuffer.length === 0) {
-        rawText += "\n";
-        rawText += centerText("MR J - SERVICE FPV") + "\n";
-      } else {
-        rawText += "\n"; // Jarak baris tipis penutup logo gambar agar tidak mepet teks bawah
-      }
+      // --- BUFFER PERINTAH HARDWARE ---
+      const startBold = Buffer.from([0x1B, 0x45, 0x01]); // Aktifkan Mode Bold
+      const stopBold = Buffer.from([0x1B, 0x45, 0x00]);  // Matikan Mode Bold
+      const cutCommand = Buffer.from([0x1D, 0x56, 0x42, 0x00]); // Potong Kertas
 
-      rawText += "\n";
-            
-      // Bagian Konten Struk Pengiriman (Rata Kiri)
-      rawText += "Pengirim\n";
-      rawText += lineSeparator;
-      rawText += "Jimmy\n";
-      rawText += "0856234205\n\n";
-      
-      rawText += "Penerima\n";
-      rawText += lineSeparator;
-      rawText += `${data.nama}\n`;
-      rawText += `${data.telepon}\n`;
-      
-      // Ambil text array alamat hasil olahan fungsi wrapText dari renderer.js
+      // 1. BAGIAN HEADER (Logo/Nama Toko)
+      let headerText = imageBuffer.length === 0 ? "\n" + centerText("MR J - SERVICE FPV") + "\n" + centerText("Cimahi - Bandung") + "\n" : "\n";
+      headerText += "\n";
+      const headerBuffer = Buffer.from(headerText, 'utf-8');
+
+      // 2. KONTEN PENGIRIM (Bold: Judul "Pengirim", Teks Normal: Data)
+      const labelPengirimBuffer = Buffer.from("Pengirim\n", 'utf-8');
+      let detailPengirimText = lineSeparator + "Jimmy\n" + "0856234205\n\n";
+      const detailPengirimBuffer = Buffer.from(detailPengirimText, 'utf-8');
+
+      // 3. KONTEN PENERIMA (Bold: Judul "Penerima", Teks Normal: Data)
+      const labelPenerimaBuffer = Buffer.from("Penerima\n", 'utf-8');
+      let detailPenerimaText = lineSeparator + `${data.nama}\n` + `${data.telepon}\n`;
+      const detailPenerimaBuffer = Buffer.from(detailPenerimaText, 'utf-8');
+
+      // 4. BAGIAN ALAMAT (Teks Normal)
+      let alamatText = "";
       data.alamatFormatted.forEach(line => {
-        rawText += `${line}\n`;
+        alamatText += `${line}\n`;
       });
-      
-      rawText += "\n";
+      alamatText += "\n";
+      const alamatBuffer = Buffer.from(alamatText, 'utf-8');
 
-      // Susun kotak kurir ekspedisi di posisi tengah lembaran
+      // 5. BAGIAN LAYANAN KURIR BOX (IKUT DI-BOLD TOTAL)
+      let kurirText = "";
       data.kurirFormatted.forEach(line => {
-        rawText += centerText(line) + "\n";
+        kurirText += centerText(line) + "\n";
       });
-      
-      // rawText += "\n\n\n\n"; // Gulung kertas panjang ke depan agar aman disobek manual
+      kurirText += "\n"; // Gulung kertas panjang melewati pisau potong
+      const kurirBuffer = Buffer.from(kurirText, 'utf-8');
 
-      const textBuffer = Buffer.from(rawText, 'utf-8');
-      const cutCommand = Buffer.from([0x1D, 0x56, 0x42, 0x00]); // Perintah auto-cut hardware standar
 
-      // TRANSMISI JALUR BERANTAI AMAN: Kirim Data Grafis Logo -> Kirim Teks Alamat -> Eksekusi Potong Kertas
+      // --- TRANSMISI BERANTAI REAL-TIME (CHAINING HARDWARE) ---
       device.write(imageBuffer, () => {
-        device.write(textBuffer, () => {
-          device.write(cutCommand, () => {
-            setTimeout(() => {
-              device.close();
-              sendReply(true, 'Cetak berhasil!');
-            }, 800);
+        device.write(headerBuffer, () => {
+          
+          // --- PROSES SEGMEN PENGIRIM ---
+          device.write(startBold, () => {
+            device.write(labelPengirimBuffer, () => { // BOLD: Pengirim
+              device.write(stopBold, () => {
+                device.write(detailPengirimBuffer, () => { // NORMAL: Data Pengirim
+                  
+                  // --- PROSES SEGMEN PENERIMA ---
+                  device.write(startBold, () => {
+                    device.write(labelPenerimaBuffer, () => { // BOLD: Penerima
+                      device.write(stopBold, () => {
+                        device.write(detailPenerimaBuffer, () => { // NORMAL: Data Penerima & Alamat
+                          
+                          // --- PROSES CETAK ALAMAT NORMAL ---
+                          device.write(alamatBuffer, () => {
+                            
+                            // --- PROSES CETAK KURIR BOX SECARA BOLD ---
+                            device.write(startBold, () => { // <--- NYALAKAN BOLD UNTUK KOTAK KURIR
+                              device.write(kurirBuffer, () => {
+                                device.write(stopBold, () => { // <--- MATIKAN BOLD
+                                  
+                                  // --- PROSES AUTO-CUT ---
+                                  device.write(cutCommand, () => {
+                                    setTimeout(() => {
+                                      device.close();
+                                      sendReply(true, 'Cetak label premium berhasil!');
+                                    }, 800);
+                                  });
+
+                                });
+                              });
+                            }); // Akhir Bold Kurir
+
+                          });
+
+                        });
+                      });
+                    });
+                  });
+
+                });
+              });
+            });
           });
+
         });
       });
 
@@ -208,7 +236,6 @@ ipcMain.on('print-job', async (event, data) => {
     }
   });
 
-  // Listener proteksi port serial hardware tingkat OS
   device.on('error', (err) => {
     clearTimeout(backupTimeout);
     sendReply(false, `Gagal koneksi (Error Hardware): ${err.message}`);
