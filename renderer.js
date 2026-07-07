@@ -73,12 +73,12 @@ function wrapText(text, maxChars = 32) {
 
 // Fungsi membuat format box border kurir menggunakan Double Line Box-Drawing (Usulan 1)
 function formatKurirBorder(kurirText) {
-  const isiTeks = `  ${kurirText}  `; // Memberi spasi ganda agar terlihat seimbang di dalam box
+  const isiTeks = `   ${kurirText}   `; // Spasi ekstra agar kotak terlihat luas dan rapi
   const panjangGaris = isiTeks.length;
   
-  const atas = "╔" + "═".repeat(panjangGaris) + "╗";
-  const tengah = "║" + isiTeks + "║";
-  const bawah = "╚" + "═".repeat(panjangGaris) + "╝";
+  const atas = "+" + "-".repeat(panjangGaris) + "+";
+  const tengah = "|" + isiTeks + "|";
+  const bawah = "+" + "-".repeat(panjangGaris) + "+";
 
   return [atas, tengah, bawah];
 }
@@ -91,7 +91,7 @@ function updatePreview() {
   // Format Alamat
   const alamatRaw = inputAlamat.value;
   if (alamatRaw) {
-    const alamatLines = wrapText(alamatRaw, 32); 
+    const alamatLines = wrapText(alamatRaw, 48); 
     document.getElementById('p-alamat').innerHTML = alamatLines.join('<br>');
   } else {
     document.getElementById('p-alamat').innerText = '[Alamat Penerima]';
@@ -128,7 +128,7 @@ btnPrint.addEventListener('click', () => {
     targetPort: selectComPort.value,
     nama: inputNama.value || '-',
     telepon: inputTelepon.value || '-',
-    alamatFormatted: wrapText(inputAlamat.value, 32),
+    alamatFormatted: wrapText(inputAlamat.value, 48),
     kurirFormatted: formatKurirBorder(inputKurir.value)
   };
 
