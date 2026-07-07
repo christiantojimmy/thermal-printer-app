@@ -38,16 +38,28 @@ function centerText(text, maxChars = 48) {
   return " ".repeat(spasiKiri) + text;
 }
 
-// FUNGSI INOVASI: Mengonversi gambar PNG menjadi Buffer Grafis RTPrinter (Sintaks Jimp v1.x + Bitwise Shift)
+// FUNGSI INOVASI BARU: Membersihkan format nomor HP dari WA menjadi 08xxxxxxxx
+function formatPhoneNumber(phone) {
+  if (!phone) return "";
+  
+  // 1. Hapus semua karakter yang bukan angka (spasi, strip, tanda tambah, kurung, dll)
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // 2. Jika nomor diawali dengan '62', ubah menjadi '0'
+  if (cleaned.startsWith('62')) {
+    cleaned = '0' + cleaned.slice(2);
+  }
+  
+  return cleaned;
+}
+
+// FUNGSI INOVASI LOGO: Mengonversi gambar PNG menjadi Buffer Grafis RTPrinter
 async function generateRTPrinterBuffer(imagePath) {
   if (!fs.existsSync(imagePath)) {
     throw new Error("File logo.png tidak ditemukan!");
   }
 
-  // 1. Ambil data gambar menggunakan Jimp v1.x
   const image = await Jimp.read(imagePath);
-  
-  // 2. Hitung dimensi proporsional agar aspek rasio tidak rusak / gepeng
   const targetWidth = 240;
   const targetHeight = Math.round((image.height / image.width) * targetWidth);
   
@@ -59,7 +71,6 @@ async function generateRTPrinterBuffer(imagePath) {
   const widthBytes = Math.ceil(width / 8);
   const pixelData = [];
 
-  // 3. Looping data pixel dan ekstraksi warna manual
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < widthBytes; x++) {
       let byte = 0;
@@ -67,7 +78,6 @@ async function generateRTPrinterBuffer(imagePath) {
         const pixelX = x * 8 + b;
         if (pixelX < width) {
           const pixelColor = image.getPixelColor(pixelX, y);
-          
           const r = (pixelColor >> 24) & 0xFF;
           const g = (pixelColor >> 16) & 0xFF;
           const bColor = (pixelColor >> 8) & 0xFF;
@@ -83,7 +93,6 @@ async function generateRTPrinterBuffer(imagePath) {
     }
   }
 
-  // Header Protokol Gambar RTPrinter / ESC-POS Standar (GS v 0 m xL xH yL yH)
   const commandHeader = Buffer.from([
     0x1D, 0x76, 0x30, 0x00, 
     widthBytes & 0xFF, (widthBytes >> 8) & 0xFF,
@@ -100,7 +109,7 @@ async function generateRTPrinterBuffer(imagePath) {
 ipcMain.on('print-job', async (event, data) => {
   const device = new SerialPort({
     path: data.targetPort, 
-    baudRate: 9600, // <--- Ganti ke 115200 jika printer Anda menggunakan kecepatan tinggi
+    baudRate: 9600, 
     autoOpen: false 
   });
 
@@ -143,23 +152,26 @@ ipcMain.on('print-job', async (event, data) => {
       const lineSeparator = "-".repeat(maxLineChars) + "\n";
 
       // --- BUFFER PERINTAH HARDWARE ---
-      const startBold = Buffer.from([0x1B, 0x45, 0x01]); // Aktifkan Mode Bold
-      const stopBold = Buffer.from([0x1B, 0x45, 0x00]);  // Matikan Mode Bold
-      const cutCommand = Buffer.from([0x1D, 0x56, 0x42, 0x00]); // Potong Kertas
+      const startBold = Buffer.from([0x1B, 0x45, 0x01]); 
+      const stopBold = Buffer.from([0x1B, 0x45, 0x00]);  
+      const cutCommand = Buffer.from([0x1D, 0x56, 0x42, 0x00]); 
 
       // 1. BAGIAN HEADER (Logo/Nama Toko)
       let headerText = imageBuffer.length === 0 ? "\n" + centerText("MR J - SERVICE FPV") + "\n" + centerText("Cimahi - Bandung") + "\n" : "\n";
       headerText += "\n";
       const headerBuffer = Buffer.from(headerText, 'utf-8');
 
-      // 2. KONTEN PENGIRIM (Bold: Judul "Pengirim", Teks Normal: Data)
+      // 2. KONTEN PENGIRIM
       const labelPengirimBuffer = Buffer.from("Pengirim\n", 'utf-8');
-      let detailPengirimText = lineSeparator + "Jimmy\n" + "0856234205\n\n";
+      let detailPengirimText = lineSeparator + "Jimmy\n" + "08562343025\n\n";
       const detailPengirimBuffer = Buffer.from(detailPengirimText, 'utf-8');
 
-      // 3. KONTEN PENERIMA (Bold: Judul "Penerima", Teks Normal: Data)
+      // --- PROSES STRIP & FORMAT AUTOMATIS NOMOR HP PENERIMA WA DI SINI ---
+      const nomorPenerimaBersih = formatPhoneNumber(data.telepon);
+
+      // 3. KONTEN PENERIMA (Menggunakan nomor HP yang sudah dibersihkan formatnya)
       const labelPenerimaBuffer = Buffer.from("Penerima\n", 'utf-8');
-      let detailPenerimaText = lineSeparator + `${data.nama}\n` + `${data.telepon}\n`;
+      let detailPenerimaText = lineSeparator + `${data.nama}\n` + `${nomorPenerimaBersih}\n`;
       const detailPenerimaBuffer = Buffer.from(detailPenerimaText, 'utf-8');
 
       // 4. BAGIAN ALAMAT (Teks Normal)
@@ -170,38 +182,37 @@ ipcMain.on('print-job', async (event, data) => {
       alamatText += "\n";
       const alamatBuffer = Buffer.from(alamatText, 'utf-8');
 
-      // 5. BAGIAN LAYANAN KURIR BOX (IKUT DI-BOLD TOTAL)
+      // 5. BAGIAN LAYANAN KURIR BOX (Bold)
       let kurirText = "";
       data.kurirFormatted.forEach(line => {
         kurirText += centerText(line) + "\n";
       });
-      kurirText += "\n"; // Gulung kertas panjang melewati pisau potong
+      kurirText += "\n"; 
       const kurirBuffer = Buffer.from(kurirText, 'utf-8');
 
-
-      // --- TRANSMISI BERANTAI REAL-TIME (CHAINING HARDWARE) ---
+      // --- TRANSMISI BERANTAI REAL-TIME ---
       device.write(imageBuffer, () => {
         device.write(headerBuffer, () => {
           
           // --- PROSES SEGMEN PENGIRIM ---
           device.write(startBold, () => {
-            device.write(labelPengirimBuffer, () => { // BOLD: Pengirim
+            device.write(labelPengirimBuffer, () => { 
               device.write(stopBold, () => {
-                device.write(detailPengirimBuffer, () => { // NORMAL: Data Pengirim
+                device.write(detailPengirimBuffer, () => { 
                   
                   // --- PROSES SEGMEN PENERIMA ---
                   device.write(startBold, () => {
-                    device.write(labelPenerimaBuffer, () => { // BOLD: Penerima
+                    device.write(labelPenerimaBuffer, () => { 
                       device.write(stopBold, () => {
-                        device.write(detailPenerimaBuffer, () => { // NORMAL: Data Penerima & Alamat
+                        device.write(detailPenerimaBuffer, () => { 
                           
                           // --- PROSES CETAK ALAMAT NORMAL ---
                           device.write(alamatBuffer, () => {
                             
                             // --- PROSES CETAK KURIR BOX SECARA BOLD ---
-                            device.write(startBold, () => { // <--- NYALAKAN BOLD UNTUK KOTAK KURIR
+                            device.write(startBold, () => { 
                               device.write(kurirBuffer, () => {
-                                device.write(stopBold, () => { // <--- MATIKAN BOLD
+                                device.write(stopBold, () => { 
                                   
                                   // --- PROSES AUTO-CUT ---
                                   device.write(cutCommand, () => {
@@ -213,7 +224,7 @@ ipcMain.on('print-job', async (event, data) => {
 
                                 });
                               });
-                            }); // Akhir Bold Kurir
+                            }); 
 
                           });
 
