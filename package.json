@@ -21,16 +21,23 @@
   "build": {
     "appId": "com.mrj.thermalprinter",
     "productName": "Mr J - Thermal Printer",
+    "directories": {
+      "output": "dist"
+    },
     "win": {
+      "icon": "icon.ico",
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
-    "files": [
-      "**/*",
-      "!dist"
-    ],
-    "asar": true
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
