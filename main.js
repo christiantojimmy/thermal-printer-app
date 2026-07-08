@@ -38,21 +38,6 @@ function centerText(text, maxChars = 48) {
   return " ".repeat(spasiKiri) + text;
 }
 
-// FUNGSI INOVASI BARU: Membersihkan format nomor HP dari WA menjadi 08xxxxxxxx
-function formatPhoneNumber(phone) {
-  if (!phone) return "";
-  
-  // 1. Hapus semua karakter yang bukan angka (spasi, strip, tanda tambah, kurung, dll)
-  let cleaned = phone.replace(/\D/g, '');
-  
-  // 2. Jika nomor diawali dengan '62', ubah menjadi '0'
-  if (cleaned.startsWith('62')) {
-    cleaned = '0' + cleaned.slice(2);
-  }
-  
-  return cleaned;
-}
-
 // FUNGSI INOVASI LOGO: Mengonversi gambar PNG menjadi Buffer Grafis RTPrinter
 async function generateRTPrinterBuffer(imagePath) {
   if (!fs.existsSync(imagePath)) {
@@ -167,7 +152,7 @@ ipcMain.on('print-job', async (event, data) => {
       const detailPengirimBuffer = Buffer.from(detailPengirimText, 'utf-8');
 
       // --- PROSES STRIP & FORMAT AUTOMATIS NOMOR HP PENERIMA WA DI SINI ---
-      const nomorPenerimaBersih = formatPhoneNumber(data.telepon);
+      const nomorPenerimaBersih = data.telepon;
 
       // 3. KONTEN PENERIMA (Menggunakan nomor HP yang sudah dibersihkan formatnya)
       const labelPenerimaBuffer = Buffer.from("Penerima\n", 'utf-8');

@@ -10,16 +10,13 @@ const btnPrint = document.getElementById('btnPrint');
 const statusText = document.getElementById('status');
 
 // --- PENGATURAN PEMINDAIAN PORT COM ---
-// Minta daftar COM Port aktif saat aplikasi pertama kali dibuka
 ipcRenderer.send('get-com-ports');
 
-// Handler Tombol Refresh Port manual
 btnRefreshPort.addEventListener('click', () => {
   selectComPort.innerHTML = '<option value="">Memindai port...</option>';
   ipcRenderer.send('get-com-ports');
 });
 
-// Tangkap hasil list COM Port dari Main Process dan masukkan ke Dropdown Select
 ipcRenderer.on('com-ports-list', (event, ports) => {
   selectComPort.innerHTML = ''; 
   
@@ -39,6 +36,18 @@ ipcRenderer.on('com-ports-list', (event, ports) => {
   });
 });
 // --------------------------------------
+
+// INOVASI: Fungsi Pembersih Format No HP dari WhatsApp (Ubah +62/strip/spasi ke 08)
+function formatPhoneNumber(phone) {
+  if (!phone) return "";
+  // Hapus semua karakter yang bukan angka
+  let cleaned = phone.replace(/\D/g, '');
+  // Jika diawali kode negara 62, konversi ke 0
+  if (cleaned.startsWith('62')) {
+    cleaned = '0' + cleaned.slice(2);
+  }
+  return cleaned;
+}
 
 // Fungsi Word Wrap teks alamat (Max 32 Karakter per baris) agar tidak terpotong kertas struk
 function wrapText(text, maxChars = 32) {
@@ -71,9 +80,9 @@ function wrapText(text, maxChars = 32) {
   return lines;
 }
 
-// Fungsi membuat format box border kurir menggunakan Double Line Box-Drawing (Usulan 1)
+// Fungsi membuat format box border kurir menggunakan Double Line Box-Drawing
 function formatKurirBorder(kurirText) {
-  const isiTeks = `   ${kurirText}   `; // Spasi ekstra agar kotak terlihat luas dan rapi
+  const isiTeks = `   ${kurirText}   `; 
   const panjangGaris = isiTeks.length;
   
   const atas = "+" + "-".repeat(panjangGaris) + "+";
@@ -86,7 +95,13 @@ function formatKurirBorder(kurirText) {
 // Fungsi Update Tampilan Live Preview secara Real-time
 function updatePreview() {
   document.getElementById('p-nama').innerText = inputNama.value || '[Nama Penerima]';
-  document.getElementById('p-telepon').innerText = inputTelepon.value || '[No. Telepon Penerima]';
+  
+  // INOVASI: Bungkus value input dengan formatPhoneNumber agar Live Preview langsung update bersih
+  if (inputTelepon.value) {
+    document.getElementById('p-telepon').innerText = formatPhoneNumber(inputTelepon.value);
+  } else {
+    document.getElementById('p-telepon').innerText = '[No. Telepon Penerima]';
+  }
   
   // Format Alamat
   const alamatRaw = inputAlamat.value;
@@ -110,14 +125,12 @@ inputAlamat.addEventListener('input', updatePreview);
 
 // Eksekusi Tombol Cetak Label Thermal
 btnPrint.addEventListener('click', () => {
-  // Validasi jika user belum/tidak memilih COM Port aktif
   if (!selectComPort.value) {
     statusText.innerText = "Gagal: Silakan pilih COM Port Printer terlebih dahulu!";
     statusText.style.color = "red";
     return;
   }
 
-  // Nonaktifkan tombol (disabled) & ubah status untuk mencegah double-klik / spam data
   statusText.innerText = "Mengirim data ke printer... Mohon tunggu...";
   statusText.style.color = "orange";
   btnPrint.disabled = true;
@@ -127,7 +140,10 @@ btnPrint.addEventListener('click', () => {
   const payload = {
     targetPort: selectComPort.value,
     nama: inputNama.value || '-',
-    telepon: inputTelepon.value || '-',
+    
+    // INOVASI: Kirim data telepon yang sudah matang diformat ke Main Process
+    telepon: formatPhoneNumber(inputTelepon.value) || '-',
+    
     alamatFormatted: wrapText(inputAlamat.value, 48),
     kurirFormatted: formatKurirBorder(inputKurir.value)
   };
@@ -135,7 +151,7 @@ btnPrint.addEventListener('click', () => {
   ipcRenderer.send('print-job', payload);
 });
 
-// Terima balikan respon status cetak dari Main Process untuk mengaktifkan kembali tombol
+// Terima balikan respon status cetak dari Main Process
 ipcRenderer.on('print-status', (event, res) => {
   statusText.innerText = res.message;
   
@@ -145,11 +161,10 @@ ipcRenderer.on('print-status', (event, res) => {
     statusText.style.color = "red";
   }
   
-  // Kembalikan tombol ke kondisi aktif semula
   btnPrint.disabled = false;
   btnPrint.style.backgroundColor = "#007bff";
   btnPrint.style.cursor = "pointer";
 });
 
-// Jalankan preview sekali di awal load agar kotak default JNE - REG langsung terbentuk pas
+// Jalankan preview sekali di awal load
 updatePreview();
